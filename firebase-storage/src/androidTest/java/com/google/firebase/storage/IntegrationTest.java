@@ -30,7 +30,6 @@ import com.google.firebase.storage.StreamDownloadTask.TaskSnapshot;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,7 +48,9 @@ public class IntegrationTest {
 
   private FirebaseStorage storageClient;
 
-  private final String randomPrefix = UUID.randomUUID().toString();
+  private final String randomPrefix = "letmeverify";
+
+  private final String unicodePrefix = "prefix/\\%:😊 ";
 
   @Before
   public void before() throws ExecutionException, InterruptedException {
@@ -60,6 +61,7 @@ public class IntegrationTest {
       Tasks.await(getReference("metadata.dat").putBytes(new byte[0]));
       Tasks.await(getReference("download.dat").putBytes(new byte[LARGE_FILE_SIZE_BYTES]));
       Tasks.await(getReference("prefix/empty.dat").putBytes(new byte[0]));
+      Tasks.await(getReference(unicodePrefix + "/empty.dat").putBytes(new byte[0]));
     }
   }
 
@@ -73,6 +75,15 @@ public class IntegrationTest {
     assertThat(tempFile.exists()).isTrue();
     assertThat(tempFile.length()).isEqualTo(LARGE_FILE_SIZE_BYTES);
     assertThat(fileTask.getBytesTransferred()).isEqualTo(LARGE_FILE_SIZE_BYTES);
+  }
+
+  @Test
+  public void downloadUnicodeFile() throws ExecutionException, InterruptedException, IOException {
+    File tempFile = new File(Environment.getExternalStorageDirectory(), "empty.dat");
+
+    Tasks.await(getReference(unicodePrefix + "/empty.dat").getFile(tempFile));
+
+    assertThat(tempFile.exists()).isTrue();
   }
 
   @Test
@@ -159,6 +170,19 @@ public class IntegrationTest {
     assertThat(listResult.getItems())
         .containsExactly(getReference("metadata.dat"), getReference("download.dat"));
     assertThat(listResult.getPageToken()).isNull();
+  }
+
+  @Test
+  public void listUnicodeFiles() throws ExecutionException, InterruptedException {
+    Task<ListResult> listTask = getReference("prefix").listAll();
+    ListResult listResult = Tasks.await(listTask);
+
+    assertThat(listResult.getPrefixes()).containsExactly(getReference(unicodePrefix));
+
+    listTask = getReference(unicodePrefix).listAll();
+    listResult = Tasks.await(listTask);
+
+    assertThat(listResult.getItems()).containsExactly(getReference(unicodePrefix + "/empty.dat"));
   }
 
   @NonNull
